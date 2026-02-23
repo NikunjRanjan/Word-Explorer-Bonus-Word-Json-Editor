@@ -1,0 +1,380 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bonus Word Editor</title>
+
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        font-family:
+          Segoe UI,
+          Arial,
+          sans-serif;
+        background: #151515;
+        color: #e6e6e6;
+      }
+
+      .root {
+        display: flex;
+        height: 100%;
+      }
+
+      .panel {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .left {
+        width: 30%;
+        background: #252526;
+      }
+      .center {
+        width: 40%;
+        background: #1e1e1e;
+      }
+      .right {
+        width: 30%;
+        background: #252526;
+      }
+
+      .resizer {
+        width: 6px;
+        background: #333;
+        cursor: col-resize;
+      }
+
+      h2 {
+        font-size: 13px;
+        margin: 8px 0 4px;
+        border-bottom: 1px solid #333;
+        color: #9cdcfe;
+      }
+
+      textarea {
+        flex: 1;
+        resize: none;
+        background: #1e1e1e;
+        color: #dcdcdc;
+        border: 1px solid #333;
+        padding: 8px;
+        font-family: Consolas, monospace;
+        font-size: 12px;
+      }
+
+      input,
+      select {
+        padding: 6px;
+        margin-bottom: 6px;
+        background: #2d2d2d;
+        color: #fff;
+        border: 1px solid #444;
+      }
+
+      button {
+        padding: 6px;
+        background: #6a5acd;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+
+      .list {
+        flex: 1;
+        overflow-y: auto;
+        border: 1px solid #333;
+        padding: 6px;
+        margin-bottom: 6px;
+      }
+
+      .word {
+        display: inline-block;
+        padding: 4px 8px;
+        margin: 3px;
+        border-radius: 3px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .word.bonus {
+        background: #264f78;
+      }
+      .word.removed {
+        background: #7a6a1f;
+      }
+      .word.possible {
+        background: #3a3a3a;
+      }
+      .word.possible.blocked {
+        background: #a33a3a;
+        cursor: not-allowed;
+      }
+
+      /* Popup */
+      .toast {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #a33a3a;
+        color: #fff;
+        padding: 10px 16px;
+        border-radius: 4px;
+        font-size: 13px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s;
+      }
+
+      .toast.show {
+        opacity: 1;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="root">
+      <div class="panel left" id="leftPanel">
+        <h2>Input JSON</h2>
+        <textarea id="input"></textarea>
+        <button onclick="loadJson()">Load JSON</button>
+      </div>
+
+      <div class="resizer" id="r1"></div>
+
+      <div class="panel center" id="centerPanel">
+        <h2>Level</h2>
+        <select id="levelSelect" onchange="changeLevel()"></select>
+
+        <h2>Bonus Words</h2>
+        <input
+          id="bonusInput"
+          placeholder="ENTER BONUS WORD"
+          oninput="forceUpper(this)"
+        />
+        <button onclick="addBonus()">Add Bonus</button>
+        <div id="bonusList" class="list"></div>
+
+        <h2>Recently Removed</h2>
+        <div id="removedList" class="list"></div>
+
+        <h2>Possible Words</h2>
+        <input
+          id="searchInput"
+          placeholder="Search..."
+          oninput="renderPossible()"
+        />
+        <div id="possibleList" class="list"></div>
+      </div>
+
+      <div class="resizer" id="r2"></div>
+
+      <div class="panel right" id="rightPanel">
+        <h2>Output JSON</h2>
+        <textarea id="output"></textarea>
+        <button onclick="copyOutput()">Copy</button>
+        <button onclick="downloadOutput()">Download</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+      let data = null;
+      let levelIndex = 0;
+      let recentlyRemoved = [];
+
+      const reverse = (s) => s.split("").reverse().join("");
+
+      function forceUpper(el) {
+        el.value = el.value.toUpperCase();
+      }
+
+      function showToast(msg) {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.classList.add("show");
+        setTimeout(() => t.classList.remove("show"), 2200);
+      }
+
+      function loadJson() {
+        try {
+          data = JSON.parse(input.value);
+        } catch {
+          showToast("Invalid JSON");
+          return;
+        }
+
+        levelSelect.innerHTML = "";
+        data.levels.forEach((l, i) => {
+          const o = document.createElement("option");
+          o.value = i;
+          o.textContent = l.levelname;
+          levelSelect.appendChild(o);
+        });
+
+        levelIndex = 0;
+        recentlyRemoved = [];
+        render();
+      }
+
+      function changeLevel() {
+        levelIndex = +levelSelect.value;
+        recentlyRemoved = [];
+        render();
+      }
+
+      function addBonus() {
+        if (!data) return;
+
+        const word = bonusInput.value.trim().toUpperCase();
+        if (!word) return;
+
+        const lvl = data.levels[levelIndex];
+        const rev = reverse(word);
+
+        if (lvl.bonusWords.includes(word)) {
+          showToast("Already a bonus word");
+          return;
+        }
+
+        if (lvl.bonusWords.includes(rev)) {
+          showToast("Reverse word already exists");
+          return;
+        }
+
+        if (lvl.words.some((w) => w.text === word || w.text === rev)) {
+          showToast("Conflicts with main level word");
+          return;
+        }
+
+        lvl.bonusWords.push(word);
+        bonusInput.value = "";
+        render();
+      }
+
+      function render() {
+        renderBonus();
+        renderRemoved();
+        renderPossible();
+        output.value = JSON.stringify(data, null, 2);
+      }
+
+      function renderBonus() {
+        bonusList.innerHTML = "";
+        data.levels[levelIndex].bonusWords.forEach((w, i) => {
+          const d = document.createElement("div");
+          d.className = "word bonus";
+          d.textContent = w;
+          d.onclick = () => {
+            data.levels[levelIndex].bonusWords.splice(i, 1);
+            recentlyRemoved.unshift(w);
+            render();
+          };
+          bonusList.appendChild(d);
+        });
+      }
+
+      function renderRemoved() {
+        removedList.innerHTML = "";
+        recentlyRemoved.forEach((w, i) => {
+          const d = document.createElement("div");
+          d.className = "word removed";
+          d.textContent = w;
+          d.onclick = () => {
+            data.levels[levelIndex].bonusWords.push(w);
+            recentlyRemoved.splice(i, 1);
+            render();
+          };
+          removedList.appendChild(d);
+        });
+      }
+
+      function getGrid(level) {
+        return level.grid.map((r) => r.letters);
+      }
+
+      function getLines(grid) {
+        const lines = [];
+        const rows = grid.length;
+        const cols = grid[0].length;
+
+        for (let r = 0; r < rows; r++) lines.push(grid[r].join(""));
+        for (let c = 0; c < cols; c++) {
+          let s = "";
+          for (let r = 0; r < rows; r++) s += grid[r][c];
+          lines.push(s);
+        }
+        return lines;
+      }
+
+      function renderPossible() {
+        possibleList.innerHTML = "";
+        const lvl = data.levels[levelIndex];
+
+        const blocked = new Set();
+        lvl.words.forEach((w) => {
+          blocked.add(w.text);
+          blocked.add(reverse(w.text));
+        });
+
+        const found = new Set();
+        getLines(getGrid(lvl)).forEach((line) => {
+          for (let i = 0; i < line.length; i++) {
+            for (let l = 3; i + l <= line.length; l++) {
+              found.add(line.substr(i, l));
+            }
+          }
+        });
+
+        [...found].sort().forEach((w) => {
+          if (lvl.bonusWords.includes(w)) return;
+
+          const d = document.createElement("div");
+          d.className = "word possible";
+          d.textContent = w;
+
+          if (blocked.has(w) || blocked.has(reverse(w))) {
+            d.classList.add("blocked");
+            d.onclick = () => showToast("Blocked by main word");
+          } else {
+            d.onclick = () => {
+              lvl.bonusWords.push(w);
+              render();
+            };
+          }
+          possibleList.appendChild(d);
+        });
+      }
+
+      function copyOutput() {
+        output.select();
+        document.execCommand("copy");
+      }
+
+      function downloadOutput() {
+        if (!data) return;
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+
+        const fileName = (data.groupName || "data") + ".json";
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.click();
+
+        URL.revokeObjectURL(url);
+      }
+    </script>
+  </body>
+</html>

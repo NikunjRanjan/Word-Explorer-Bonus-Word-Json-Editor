@@ -105,6 +105,9 @@
       .word.bonus {
         background: #264f78;
       }
+      .word.bonus.invalid {
+        background: #5a1f1f;
+      }
       .word.removed {
         background: #7a6a1f;
       }
@@ -116,7 +119,6 @@
         cursor: not-allowed;
       }
 
-      /* Popup */
       .toast {
         position: fixed;
         bottom: 20px;
@@ -131,7 +133,6 @@
         pointer-events: none;
         transition: opacity 0.25s;
       }
-
       .toast.show {
         opacity: 1;
       }
@@ -140,15 +141,15 @@
 
   <body>
     <div class="root">
-      <div class="panel left" id="leftPanel">
+      <div class="panel left">
         <h2>Input JSON</h2>
         <textarea id="input"></textarea>
         <button onclick="loadJson()">Load JSON</button>
       </div>
 
-      <div class="resizer" id="r1"></div>
+      <div class="resizer"></div>
 
-      <div class="panel center" id="centerPanel">
+      <div class="panel center">
         <h2>Level</h2>
         <select id="levelSelect" onchange="changeLevel()"></select>
 
@@ -173,13 +174,11 @@
         <div id="possibleList" class="list"></div>
       </div>
 
-      <div class="resizer" id="r2"></div>
+      <div class="resizer"></div>
 
-      <div class="panel right" id="rightPanel">
+      <div class="panel right">
         <h2>Output JSON</h2>
         <textarea id="output"></textarea>
-        <button onclick="copyOutput()">Copy</button>
-        <button onclick="downloadOutput()">Download</button>
       </div>
     </div>
 
@@ -244,13 +243,8 @@
           return;
         }
 
-        if (lvl.bonusWords.includes(rev)) {
-          showToast("Reverse word already exists");
-          return;
-        }
-
         if (lvl.words.some((w) => w.text === word || w.text === rev)) {
-          showToast("Conflicts with main level word");
+          showToast("Conflicts with main word");
           return;
         }
 
@@ -266,17 +260,65 @@
         output.value = JSON.stringify(data, null, 2);
       }
 
+      function getGrid(level) {
+        return level.grid.map((r) => r.letters);
+      }
+
+      /* ===== 8-DIRECTION WORD SCAN ===== */
+      function getConstructibleWords(level) {
+        const grid = getGrid(level);
+        const rows = grid.length;
+        const cols = grid[0].length;
+        const set = new Set();
+
+        const dirs = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+          [1, 1],
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+        ];
+
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            for (const [dx, dy] of dirs) {
+              let cx = x;
+              let cy = y;
+              let word = "";
+
+              while (cx >= 0 && cx < cols && cy >= 0 && cy < rows) {
+                word += grid[cy][cx];
+                if (word.length >= 3) set.add(word);
+                cx += dx;
+                cy += dy;
+              }
+            }
+          }
+        }
+        return set;
+      }
+
       function renderBonus() {
         bonusList.innerHTML = "";
-        data.levels[levelIndex].bonusWords.forEach((w, i) => {
+        const lvl = data.levels[levelIndex];
+        const constructible = getConstructibleWords(lvl);
+
+        lvl.bonusWords.forEach((w, i) => {
+          const valid = constructible.has(w);
           const d = document.createElement("div");
-          d.className = "word bonus";
+          d.className = "word bonus" + (valid ? "" : " invalid");
           d.textContent = w;
+
           d.onclick = () => {
-            data.levels[levelIndex].bonusWords.splice(i, 1);
+            if (!valid) showToast("Cannot be made in current level");
+            lvl.bonusWords.splice(i, 1);
             recentlyRemoved.unshift(w);
             render();
           };
+
           bonusList.appendChild(d);
         });
       }
@@ -296,27 +338,11 @@
         });
       }
 
-      function getGrid(level) {
-        return level.grid.map((r) => r.letters);
-      }
-
-      function getLines(grid) {
-        const lines = [];
-        const rows = grid.length;
-        const cols = grid[0].length;
-
-        for (let r = 0; r < rows; r++) lines.push(grid[r].join(""));
-        for (let c = 0; c < cols; c++) {
-          let s = "";
-          for (let r = 0; r < rows; r++) s += grid[r][c];
-          lines.push(s);
-        }
-        return lines;
-      }
-
       function renderPossible() {
         possibleList.innerHTML = "";
         const lvl = data.levels[levelIndex];
+        const search = searchInput.value.trim().toUpperCase();
+        const constructible = getConstructibleWords(lvl);
 
         const blocked = new Set();
         lvl.words.forEach((w) => {
@@ -324,56 +350,26 @@
           blocked.add(reverse(w.text));
         });
 
-        const found = new Set();
-        getLines(getGrid(lvl)).forEach((line) => {
-          for (let i = 0; i < line.length; i++) {
-            for (let l = 3; i + l <= line.length; l++) {
-              found.add(line.substr(i, l));
+        [...constructible]
+          .filter((w) => !lvl.bonusWords.includes(w))
+          .filter((w) => !search || w.includes(search))
+          .sort()
+          .forEach((w) => {
+            const d = document.createElement("div");
+            d.className = "word possible";
+            d.textContent = w;
+
+            if (blocked.has(w) || blocked.has(reverse(w))) {
+              d.classList.add("blocked");
+              d.onclick = () => showToast("Blocked by main word");
+            } else {
+              d.onclick = () => {
+                lvl.bonusWords.push(w);
+                render();
+              };
             }
-          }
-        });
-
-        [...found].sort().forEach((w) => {
-          if (lvl.bonusWords.includes(w)) return;
-
-          const d = document.createElement("div");
-          d.className = "word possible";
-          d.textContent = w;
-
-          if (blocked.has(w) || blocked.has(reverse(w))) {
-            d.classList.add("blocked");
-            d.onclick = () => showToast("Blocked by main word");
-          } else {
-            d.onclick = () => {
-              lvl.bonusWords.push(w);
-              render();
-            };
-          }
-          possibleList.appendChild(d);
-        });
-      }
-
-      function copyOutput() {
-        output.select();
-        document.execCommand("copy");
-      }
-
-      function downloadOutput() {
-        if (!data) return;
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-          type: "application/json",
-        });
-
-        const fileName = (data.groupName || "data") + ".json";
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        a.click();
-
-        URL.revokeObjectURL(url);
+            possibleList.appendChild(d);
+          });
       }
     </script>
   </body>

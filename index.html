@@ -201,7 +201,19 @@
         setTimeout(() => t.classList.remove("show"), 2000);
       }
 
-      /* ===== Dictionary Loader (LOCAL SAFE) ===== */
+      /* ===== Oxford Middle Click ===== */
+      function attachMiddleClickOxford(el, word) {
+        el.addEventListener("auxclick", (e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+
+          const w = word.toLowerCase();
+          const url = `https://www.oxfordlearnersdictionaries.com/definition/english/${w}?q=${w}`;
+          window.open(url, "_blank", "noopener");
+        });
+      }
+
+      /* ===== Dictionary Loader ===== */
       document.getElementById("dictFile").addEventListener("change", (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -210,10 +222,7 @@
         reader.onload = () => {
           try {
             const raw = JSON.parse(reader.result);
-
-            // 🔥 NORMALIZE HERE
             dictionary = new Set(Object.keys(raw).map((w) => w.toUpperCase()));
-
             showToast(`Dictionary loaded (${dictionary.size} words)`);
             renderPossible();
           } catch {
@@ -277,7 +286,7 @@
         return level.grid.map((r) => r.letters);
       }
 
-      /* ===== Word Scan ===== */ function getConstructibleWords(level) {
+      function getConstructibleWords(level) {
         const grid = getGrid(level);
         const rows = grid.length;
         const cols = grid[0].length;
@@ -302,9 +311,7 @@
               let w = "";
 
               while (cx >= 0 && cy >= 0 && cx < cols && cy < rows) {
-                // 🔥 NORMALIZE GRID LETTER
                 w += grid[cy][cx].toUpperCase();
-
                 if (w.length >= 3) set.add(w);
                 cx += dx;
                 cy += dy;
@@ -324,6 +331,9 @@
           const d = document.createElement("div");
           d.className = "word bonus" + (validSet.has(w) ? "" : " invalid");
           d.textContent = w;
+
+          attachMiddleClickOxford(d, w);
+
           d.onclick = () => {
             lvl.bonusWords.splice(i, 1);
             recentlyRemoved.unshift(w);
@@ -339,6 +349,9 @@
           const d = document.createElement("div");
           d.className = "word removed";
           d.textContent = w;
+
+          attachMiddleClickOxford(d, w);
+
           d.onclick = () => {
             data.levels[levelIndex].bonusWords.push(w);
             recentlyRemoved.splice(i, 1);
@@ -370,6 +383,8 @@
             const d = document.createElement("div");
             d.className = "word possible";
             d.textContent = w;
+
+            attachMiddleClickOxford(d, w);
 
             if (blocked.has(w) || blocked.has(reverse(w))) {
               d.classList.add("blocked");

@@ -9,27 +9,24 @@
       body {
         height: 100%;
         margin: 0;
-        overflow: hidden;
+        background: #151515;
+        color: #e6e6e6;
         font-family:
           Segoe UI,
           Arial,
           sans-serif;
-        background: #151515;
-        color: #e6e6e6;
+        overflow: hidden;
       }
 
       .root {
         display: flex;
         height: 100%;
       }
-
       .panel {
         padding: 10px;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
       }
-
       .left {
         width: 30%;
         background: #252526;
@@ -42,7 +39,6 @@
         width: 30%;
         background: #252526;
       }
-
       .resizer {
         width: 6px;
         background: #333;
@@ -56,31 +52,28 @@
         color: #9cdcfe;
       }
 
-      textarea {
-        flex: 1;
-        resize: none;
+      textarea,
+      input,
+      select {
         background: #1e1e1e;
         color: #dcdcdc;
         border: 1px solid #333;
-        padding: 8px;
-        font-family: Consolas, monospace;
+        padding: 6px;
+        margin-bottom: 6px;
         font-size: 12px;
       }
 
-      input,
-      select {
-        padding: 6px;
-        margin-bottom: 6px;
-        background: #2d2d2d;
-        color: #fff;
-        border: 1px solid #444;
+      textarea {
+        flex: 1;
+        resize: none;
+        font-family: Consolas, monospace;
       }
 
       button {
         padding: 6px;
         background: #6a5acd;
         border: none;
-        color: #fff;
+        color: white;
         cursor: pointer;
         margin-bottom: 6px;
       }
@@ -90,7 +83,6 @@
         overflow-y: auto;
         border: 1px solid #333;
         padding: 6px;
-        margin-bottom: 6px;
       }
 
       .word {
@@ -102,19 +94,19 @@
         cursor: pointer;
       }
 
-      .word.bonus {
+      .bonus {
         background: #264f78;
       }
-      .word.bonus.invalid {
+      .bonus.invalid {
         background: #5a1f1f;
       }
-      .word.removed {
+      .removed {
         background: #7a6a1f;
       }
-      .word.possible {
+      .possible {
         background: #3a3a3a;
       }
-      .word.possible.blocked {
+      .possible.blocked {
         background: #a33a3a;
         cursor: not-allowed;
       }
@@ -128,13 +120,16 @@
         color: #fff;
         padding: 10px 16px;
         border-radius: 4px;
-        font-size: 13px;
         opacity: 0;
-        pointer-events: none;
         transition: opacity 0.25s;
       }
       .toast.show {
         opacity: 1;
+      }
+
+      label {
+        font-size: 12px;
+        margin-bottom: 6px;
       }
     </style>
   </head>
@@ -157,7 +152,7 @@
         <input
           id="bonusInput"
           placeholder="ENTER BONUS WORD"
-          oninput="forceUpper(this)"
+          oninput="this.value = this.value.toUpperCase()"
         />
         <button onclick="addBonus()">Add Bonus</button>
         <div id="bonusList" class="list"></div>
@@ -171,6 +166,13 @@
           placeholder="Search..."
           oninput="renderPossible()"
         />
+
+        <input type="file" id="dictFile" accept=".json" />
+        <label>
+          <input type="checkbox" id="dictOnly" onchange="renderPossible()" />
+          Show dictionary words only
+        </label>
+
         <div id="possibleList" class="list"></div>
       </div>
 
@@ -188,20 +190,40 @@
       let data = null;
       let levelIndex = 0;
       let recentlyRemoved = [];
+      let dictionary = null;
 
       const reverse = (s) => s.split("").reverse().join("");
-
-      function forceUpper(el) {
-        el.value = el.value.toUpperCase();
-      }
 
       function showToast(msg) {
         const t = document.getElementById("toast");
         t.textContent = msg;
         t.classList.add("show");
-        setTimeout(() => t.classList.remove("show"), 2200);
+        setTimeout(() => t.classList.remove("show"), 2000);
       }
 
+      /* ===== Dictionary Loader (LOCAL SAFE) ===== */
+      document.getElementById("dictFile").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const raw = JSON.parse(reader.result);
+
+            // 🔥 NORMALIZE HERE
+            dictionary = new Set(Object.keys(raw).map((w) => w.toUpperCase()));
+
+            showToast(`Dictionary loaded (${dictionary.size} words)`);
+            renderPossible();
+          } catch {
+            showToast("Invalid dictionary file");
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      /* ===== JSON ===== */
       function loadJson() {
         try {
           data = JSON.parse(input.value);
@@ -229,30 +251,21 @@
         render();
       }
 
+      /* ===== Bonus ===== */
       function addBonus() {
         if (!data) return;
-
-        const word = bonusInput.value.trim().toUpperCase();
+        const word = bonusInput.value.trim();
         if (!word) return;
 
         const lvl = data.levels[levelIndex];
-        const rev = reverse(word);
-
-        if (lvl.bonusWords.includes(word)) {
-          showToast("Already a bonus word");
-          return;
-        }
-
-        if (lvl.words.some((w) => w.text === word || w.text === rev)) {
-          showToast("Conflicts with main word");
-          return;
-        }
+        if (lvl.bonusWords.includes(word)) return showToast("Already exists");
 
         lvl.bonusWords.push(word);
         bonusInput.value = "";
         render();
       }
 
+      /* ===== Render ===== */
       function render() {
         renderBonus();
         renderRemoved();
@@ -264,8 +277,7 @@
         return level.grid.map((r) => r.letters);
       }
 
-      /* ===== 8-DIRECTION WORD SCAN ===== */
-      function getConstructibleWords(level) {
+      /* ===== Word Scan ===== */ function getConstructibleWords(level) {
         const grid = getGrid(level);
         const rows = grid.length;
         const cols = grid[0].length;
@@ -287,11 +299,13 @@
             for (const [dx, dy] of dirs) {
               let cx = x;
               let cy = y;
-              let word = "";
+              let w = "";
 
-              while (cx >= 0 && cx < cols && cy >= 0 && cy < rows) {
-                word += grid[cy][cx];
-                if (word.length >= 3) set.add(word);
+              while (cx >= 0 && cy >= 0 && cx < cols && cy < rows) {
+                // 🔥 NORMALIZE GRID LETTER
+                w += grid[cy][cx].toUpperCase();
+
+                if (w.length >= 3) set.add(w);
                 cx += dx;
                 cy += dy;
               }
@@ -304,21 +318,17 @@
       function renderBonus() {
         bonusList.innerHTML = "";
         const lvl = data.levels[levelIndex];
-        const constructible = getConstructibleWords(lvl);
+        const validSet = getConstructibleWords(lvl);
 
         lvl.bonusWords.forEach((w, i) => {
-          const valid = constructible.has(w);
           const d = document.createElement("div");
-          d.className = "word bonus" + (valid ? "" : " invalid");
+          d.className = "word bonus" + (validSet.has(w) ? "" : " invalid");
           d.textContent = w;
-
           d.onclick = () => {
-            if (!valid) showToast("Cannot be made in current level");
             lvl.bonusWords.splice(i, 1);
             recentlyRemoved.unshift(w);
             render();
           };
-
           bonusList.appendChild(d);
         });
       }
@@ -341,8 +351,9 @@
       function renderPossible() {
         possibleList.innerHTML = "";
         const lvl = data.levels[levelIndex];
-        const search = searchInput.value.trim().toUpperCase();
-        const constructible = getConstructibleWords(lvl);
+        const search = searchInput.value.toUpperCase();
+        const dictOnly = dictOnlyCheckbox.checked;
+        const words = getConstructibleWords(lvl);
 
         const blocked = new Set();
         lvl.words.forEach((w) => {
@@ -350,9 +361,10 @@
           blocked.add(reverse(w.text));
         });
 
-        [...constructible]
+        [...words]
           .filter((w) => !lvl.bonusWords.includes(w))
           .filter((w) => !search || w.includes(search))
+          .filter((w) => !dictOnly || (dictionary && dictionary.has(w)))
           .sort()
           .forEach((w) => {
             const d = document.createElement("div");
@@ -361,7 +373,6 @@
 
             if (blocked.has(w) || blocked.has(reverse(w))) {
               d.classList.add("blocked");
-              d.onclick = () => showToast("Blocked by main word");
             } else {
               d.onclick = () => {
                 lvl.bonusWords.push(w);
@@ -371,6 +382,8 @@
             possibleList.appendChild(d);
           });
       }
+
+      const dictOnlyCheckbox = document.getElementById("dictOnly");
     </script>
   </body>
 </html>

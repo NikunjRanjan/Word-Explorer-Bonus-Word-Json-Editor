@@ -1,114 +1,182 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Bonus Word Editor</title>
-
+    <title>Bonus Word Editor Pro</title>
     <style>
+      :root {
+        --bg-darker: #151515;
+        --bg-panel: #1e1e1e;
+        --bg-sidebar: #252526;
+        --accent: #6a5acd;
+        --accent-hover: #8375e3;
+        --text-main: #dcdcdc;
+        --text-dim: #858585;
+        --header-color: #9cdcfe;
+        --success: #2e7d32;
+        --danger: #a33a3a;
+        --border: #333;
+        --highlight: rgba(106, 90, 205, 0.3);
+      }
+
       html,
       body {
         height: 100%;
         margin: 0;
-        background: #151515;
-        color: #e6e6e6;
-        font-family:
-          Segoe UI,
-          Arial,
-          sans-serif;
+        background: var(--bg-darker);
+        color: var(--text-main);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         overflow: hidden;
       }
 
       .root {
         display: flex;
-        height: 100%;
+        height: 100vh;
+        width: 100vw;
       }
+
       .panel {
-        padding: 10px;
         display: flex;
         flex-direction: column;
+        height: 100%;
+        overflow: hidden;
       }
-      .left {
-        width: 30%;
-        background: #252526;
-      }
-      .center {
-        width: 40%;
-        background: #1e1e1e;
+
+      .left,
+      .right {
+        width: 25%;
+        background: var(--bg-sidebar);
+        border-right: 1px solid var(--border);
       }
       .right {
-        width: 30%;
-        background: #252526;
+        border-right: none;
+        border-left: 1px solid var(--border);
       }
-      .resizer {
-        width: 6px;
-        background: #333;
-        cursor: col-resize;
+      .center {
+        flex: 1;
+        background: var(--bg-panel);
+      }
+
+      .panel-header {
+        padding: 12px 15px;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
       }
 
       h2 {
-        font-size: 13px;
-        margin: 8px 0 4px;
-        border-bottom: 1px solid #333;
-        color: #9cdcfe;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 0;
+        color: var(--header-color);
       }
 
-      textarea,
-      input,
-      select {
-        background: #1e1e1e;
-        color: #dcdcdc;
-        border: 1px solid #333;
-        padding: 6px;
-        margin-bottom: 6px;
-        font-size: 12px;
+      .content {
+        flex: 1;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden; /* Prevent double scrollbars */
       }
 
       textarea {
         flex: 1;
+        background: #111;
+        color: #ce9178;
+        border: 1px solid var(--border);
+        padding: 10px;
+        font-family: "Consolas", monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        outline: none;
         resize: none;
-        font-family: Consolas, monospace;
+      }
+
+      .controls {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      input,
+      select,
+      button {
+        background: #2d2d2d;
+        color: white;
+        border: 1px solid var(--border);
+        padding: 8px;
+        font-size: 13px;
+        border-radius: 4px;
       }
 
       button {
-        padding: 6px;
-        background: #6a5acd;
-        border: none;
-        color: white;
+        background: var(--accent);
         cursor: pointer;
-        margin-bottom: 6px;
+        font-weight: 600;
+        transition: 0.2s;
+      }
+
+      button:hover {
+        background: var(--accent-hover);
+      }
+
+      .scroll-area {
+        flex: 1;
+        overflow-y: auto;
+        padding-right: 5px;
       }
 
       .list {
-        flex: 1;
-        overflow-y: auto;
-        border: 1px solid #333;
-        padding: 6px;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 6px;
+        padding: 10px;
+        background: #181818;
+        border-radius: 4px;
+        min-height: 50px;
       }
 
       .word {
-        display: inline-block;
-        padding: 4px 8px;
-        margin: 3px;
+        padding: 4px 10px;
         border-radius: 3px;
         font-size: 12px;
         cursor: pointer;
+        user-select: none;
+        transition: 0.1s;
+        border: 1px solid transparent;
+      }
+
+      .word:hover {
+        transform: scale(1.05);
+        border-color: rgba(255, 255, 255, 0.2);
       }
 
       .bonus {
-        background: #264f78;
+        background: var(--success);
       }
       .bonus.invalid {
-        background: #5a1f1f;
+        background: var(--danger);
+        border: 1px dashed white;
       }
-      .removed {
-        background: #7a6a1f;
-      }
+
       .possible {
-        background: #3a3a3a;
+        background: #3c3c3c;
+        color: #ccc;
+      }
+      .possible.added {
+        background: var(--success);
+        color: white;
+        border: 1px solid #fff;
       }
       .possible.blocked {
-        background: #a33a3a;
+        background: #2a2a2a;
+        color: #555;
         cursor: not-allowed;
+        text-decoration: line-through;
+        opacity: 0.6;
       }
 
       .toast {
@@ -116,20 +184,23 @@
         bottom: 20px;
         left: 50%;
         transform: translateX(-50%);
-        background: #a33a3a;
-        color: #fff;
-        padding: 10px 16px;
+        background: var(--accent);
+        padding: 8px 20px;
         border-radius: 4px;
         opacity: 0;
-        transition: opacity 0.25s;
+        transition: 0.3s;
+        z-index: 100;
       }
       .toast.show {
         opacity: 1;
       }
 
-      label {
-        font-size: 12px;
-        margin-bottom: 6px;
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 10px;
       }
     </style>
   </head>
@@ -137,50 +208,75 @@
   <body>
     <div class="root">
       <div class="panel left">
-        <h2>Input JSON</h2>
-        <textarea id="input"></textarea>
-        <button onclick="loadJson()">Load JSON</button>
+        <div class="panel-header"><h2>Input JSON</h2></div>
+        <div class="content">
+          <textarea id="input" placeholder="Paste JSON here..."></textarea>
+          <button style="margin-top: 10px" onclick="loadJson()">
+            Load Data
+          </button>
+        </div>
       </div>
-
-      <div class="resizer"></div>
 
       <div class="panel center">
-        <h2>Level</h2>
-        <select id="levelSelect" onchange="changeLevel()"></select>
+        <div class="panel-header"><h2>Editor</h2></div>
+        <div class="content">
+          <div class="controls">
+            <select id="levelSelect" onchange="changeLevel()">
+              <option>No levels loaded</option>
+            </select>
+            <input
+              id="searchInput"
+              placeholder="Filter constructible words..."
+              oninput="renderPossible()"
+            />
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 11px;
+              "
+            >
+              <input type="file" id="dictFile" accept=".json" style="flex: 1" />
+              <label
+                ><input
+                  type="checkbox"
+                  id="dictOnly"
+                  onchange="renderPossible()"
+                />
+                Dictionary Only</label
+              >
+            </div>
+          </div>
 
-        <h2>Bonus Words</h2>
-        <input
-          id="bonusInput"
-          placeholder="ENTER BONUS WORD"
-          oninput="this.value = this.value.toUpperCase()"
-        />
-        <button onclick="addBonus()">Add Bonus</button>
-        <div id="bonusList" class="list"></div>
+          <div class="scroll-area">
+            <h3 style="font-size: 11px; color: var(--text-dim); margin: 10px 0">
+              BONUS WORDS
+            </h3>
+            <div id="bonusList" class="list"></div>
 
-        <h2>Recently Removed</h2>
-        <div id="removedList" class="list"></div>
-
-        <h2>Possible Words</h2>
-        <input
-          id="searchInput"
-          placeholder="Search..."
-          oninput="renderPossible()"
-        />
-
-        <input type="file" id="dictFile" accept=".json" />
-        <label>
-          <input type="checkbox" id="dictOnly" onchange="renderPossible()" />
-          Show dictionary words only
-        </label>
-
-        <div id="possibleList" class="list"></div>
+            <h3
+              style="
+                font-size: 11px;
+                color: var(--text-dim);
+                margin: 20px 0 10px;
+              "
+            >
+              POSSIBLE WORDS
+            </h3>
+            <div id="possibleList" class="list"></div>
+          </div>
+        </div>
       </div>
 
-      <div class="resizer"></div>
-
       <div class="panel right">
-        <h2>Output JSON</h2>
-        <textarea id="output"></textarea>
+        <div class="panel-header"><h2>Output JSON</h2></div>
+        <div class="content">
+          <textarea id="output" readonly></textarea>
+          <button style="margin-top: 10px" onclick="copyToClipboard()">
+            Copy to Clipboard
+          </button>
+        </div>
       </div>
     </div>
 
@@ -189,10 +285,9 @@
     <script>
       let data = null;
       let levelIndex = 0;
-      let recentlyRemoved = [];
       let dictionary = null;
 
-      const reverse = (s) => s.split("").reverse().join("");
+      const reverseStr = (s) => s.split("").reverse().join("");
 
       function showToast(msg) {
         const t = document.getElementById("toast");
@@ -201,97 +296,57 @@
         setTimeout(() => t.classList.remove("show"), 2000);
       }
 
-      /* ===== Oxford Middle Click ===== */
-      function attachMiddleClickOxford(el, word) {
-        el.addEventListener("auxclick", (e) => {
-          if (e.button !== 1) return;
-          e.preventDefault();
+      function scrollToWordInOutput(word) {
+        const outputArea = document.getElementById("output");
+        const text = outputArea.value;
+        const index = text.indexOf(`"${word}"`);
 
-          const w = word.toLowerCase();
-          const url = `https://www.dictionary.com/browse/${w}`;
-          window.open(url, "_blank", "noopener");
-        });
+        if (index !== -1) {
+          outputArea.focus();
+          outputArea.setSelectionRange(index, index + word.length + 2);
+
+          // Calculate line height scroll position
+          const linesBefore = text.substring(0, index).split("\n").length;
+          const lineHeight = 18; // Approx px for 12px font-size
+          outputArea.scrollTop = (linesBefore - 5) * lineHeight;
+        }
       }
 
-      /* ===== Dictionary Loader ===== */
-      document.getElementById("dictFile").addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = () => {
-          try {
-            const raw = JSON.parse(reader.result);
-            dictionary = new Set(Object.keys(raw).map((w) => w.toUpperCase()));
-            showToast(`Dictionary loaded (${dictionary.size} words)`);
-            renderPossible();
-          } catch {
-            showToast("Invalid dictionary file");
-          }
-        };
-        reader.readAsText(file);
-      });
-
-      /* ===== JSON ===== */
       function loadJson() {
         try {
-          data = JSON.parse(input.value);
+          data = JSON.parse(document.getElementById("input").value);
+          const select = document.getElementById("levelSelect");
+          select.innerHTML = "";
+          data.levels.forEach((l, i) => {
+            const o = document.createElement("option");
+            o.value = i;
+            o.textContent = l.levelname || `Level ${i + 1}`;
+            select.appendChild(o);
+          });
+          levelIndex = 0;
+          render();
         } catch {
           showToast("Invalid JSON");
-          return;
         }
-
-        levelSelect.innerHTML = "";
-        data.levels.forEach((l, i) => {
-          const o = document.createElement("option");
-          o.value = i;
-          o.textContent = l.levelname;
-          levelSelect.appendChild(o);
-        });
-
-        levelIndex = 0;
-        recentlyRemoved = [];
-        render();
       }
 
       function changeLevel() {
-        levelIndex = +levelSelect.value;
-        recentlyRemoved = [];
+        levelIndex = +document.getElementById("levelSelect").value;
         render();
       }
 
-      /* ===== Bonus ===== */
-      function addBonus() {
-        if (!data) return;
-        const word = bonusInput.value.trim();
-        if (!word) return;
-
-        const lvl = data.levels[levelIndex];
-        if (lvl.bonusWords.includes(word)) return showToast("Already exists");
-
-        lvl.bonusWords.push(word);
-        bonusInput.value = "";
-        render();
-      }
-
-      /* ===== Render ===== */
       function render() {
+        if (!data) return;
         renderBonus();
-        renderRemoved();
         renderPossible();
-        output.value = JSON.stringify(data, null, 2);
-      }
-
-      function getGrid(level) {
-        return level.grid.map((r) => r.letters);
+        document.getElementById("output").value = JSON.stringify(data, null, 2);
       }
 
       function getConstructibleWords(level) {
-        const grid = getGrid(level);
-        const rows = grid.length;
-        const cols = grid[0].length;
-        const set = new Set();
-
+        const grid = level.grid.map((r) => r.letters);
+        const rows = grid.length,
+          cols = grid[0].length;
+        const found = new Set();
         const dirs = [
           [1, 0],
           [-1, 0],
@@ -306,99 +361,118 @@
         for (let y = 0; y < rows; y++) {
           for (let x = 0; x < cols; x++) {
             for (const [dx, dy] of dirs) {
-              let cx = x;
-              let cy = y;
-              let w = "";
-
+              let cx = x,
+                cy = y,
+                word = "";
               while (cx >= 0 && cy >= 0 && cx < cols && cy < rows) {
-                w += grid[cy][cx].toUpperCase();
-                if (w.length >= 3) set.add(w);
+                word += String(grid[cy][cx]).charAt(0).toUpperCase();
+                if (word.length >= 3) found.add(word);
                 cx += dx;
                 cy += dy;
               }
             }
           }
         }
-        return set;
+        return found;
       }
 
       function renderBonus() {
-        bonusList.innerHTML = "";
+        const container = document.getElementById("bonusList");
+        container.innerHTML = "";
         const lvl = data.levels[levelIndex];
         const validSet = getConstructibleWords(lvl);
 
-        lvl.bonusWords.forEach((w, i) => {
+        lvl.bonusWords.forEach((word, i) => {
           const d = document.createElement("div");
-          d.className = "word bonus" + (validSet.has(w) ? "" : " invalid");
-          d.textContent = w;
-
-          attachMiddleClickOxford(d, w);
-
+          const isInvalid = !validSet.has(word.toUpperCase());
+          d.className = `word bonus ${isInvalid ? "invalid" : ""}`;
+          d.textContent = word;
           d.onclick = () => {
             lvl.bonusWords.splice(i, 1);
-            recentlyRemoved.unshift(w);
             render();
           };
-          bonusList.appendChild(d);
-        });
-      }
-
-      function renderRemoved() {
-        removedList.innerHTML = "";
-        recentlyRemoved.forEach((w, i) => {
-          const d = document.createElement("div");
-          d.className = "word removed";
-          d.textContent = w;
-
-          attachMiddleClickOxford(d, w);
-
-          d.onclick = () => {
-            data.levels[levelIndex].bonusWords.push(w);
-            recentlyRemoved.splice(i, 1);
-            render();
-          };
-          removedList.appendChild(d);
+          container.appendChild(d);
         });
       }
 
       function renderPossible() {
-        possibleList.innerHTML = "";
+        const container = document.getElementById("possibleList");
+        container.innerHTML = "";
         const lvl = data.levels[levelIndex];
-        const search = searchInput.value.toUpperCase();
-        const dictOnly = dictOnlyCheckbox.checked;
-        const words = getConstructibleWords(lvl);
-
+        const search = document
+          .getElementById("searchInput")
+          .value.toUpperCase();
+        const dictOnly = document.getElementById("dictOnly").checked;
+        const constructible = getConstructibleWords(lvl);
         const blocked = new Set();
+
         lvl.words.forEach((w) => {
-          blocked.add(w.text);
-          blocked.add(reverse(w.text));
+          const t = w.text.toUpperCase();
+          blocked.add(t);
+          blocked.add(reverseStr(t));
         });
 
-        [...words]
-          .filter((w) => !lvl.bonusWords.includes(w))
-          .filter((w) => !search || w.includes(search))
-          .filter((w) => !dictOnly || (dictionary && dictionary.has(w)))
+        const currentBonus = new Set(
+          lvl.bonusWords.map((b) => b.toUpperCase()),
+        );
+
+        Array.from(constructible)
+          .filter(
+            (w) =>
+              (!search || w.includes(search)) &&
+              (!dictOnly || (dictionary && dictionary.has(w))),
+          )
           .sort()
-          .forEach((w) => {
+          .forEach((wordStr) => {
             const d = document.createElement("div");
             d.className = "word possible";
-            d.textContent = w;
+            d.textContent = wordStr;
 
-            attachMiddleClickOxford(d, w);
-
-            if (blocked.has(w) || blocked.has(reverse(w))) {
+            if (blocked.has(wordStr)) {
               d.classList.add("blocked");
             } else {
+              if (currentBonus.has(wordStr)) d.classList.add("added");
               d.onclick = () => {
-                lvl.bonusWords.push(w);
+                const upperWord = wordStr.toUpperCase();
+                const idx = lvl.bonusWords.findIndex(
+                  (bw) => bw.toUpperCase() === upperWord,
+                );
+                if (idx > -1) {
+                  lvl.bonusWords.splice(idx, 1);
+                } else {
+                  lvl.bonusWords.push(wordStr);
+                }
                 render();
+                setTimeout(() => scrollToWordInOutput(wordStr), 10);
               };
             }
-            possibleList.appendChild(d);
+            container.appendChild(d);
           });
       }
 
-      const dictOnlyCheckbox = document.getElementById("dictOnly");
+      function copyToClipboard() {
+        const out = document.getElementById("output");
+        out.select();
+        document.execCommand("copy");
+        showToast("JSON Copied!");
+      }
+
+      document.getElementById("dictFile").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const r = new FileReader();
+        r.onload = () => {
+          try {
+            const raw = JSON.parse(r.result);
+            dictionary = new Set(Object.keys(raw).map((w) => w.toUpperCase()));
+            showToast(`Dict Loaded: ${dictionary.size}`);
+            renderPossible();
+          } catch {
+            showToast("Invalid Dict JSON");
+          }
+        };
+        r.readAsText(file);
+      });
     </script>
   </body>
 </html>

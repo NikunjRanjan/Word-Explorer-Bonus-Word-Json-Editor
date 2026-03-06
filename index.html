@@ -16,7 +16,6 @@
         --success: #2e7d32;
         --danger: #a33a3a;
         --border: #333;
-        --highlight: rgba(106, 90, 205, 0.3);
       }
 
       html,
@@ -77,7 +76,7 @@
         padding: 15px;
         display: flex;
         flex-direction: column;
-        overflow: hidden; /* Prevent double scrollbars */
+        overflow: hidden;
       }
 
       textarea {
@@ -117,7 +116,6 @@
         font-weight: 600;
         transition: 0.2s;
       }
-
       button:hover {
         background: var(--accent-hover);
       }
@@ -151,7 +149,7 @@
 
       .word:hover {
         transform: scale(1.05);
-        border-color: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.4);
       }
 
       .bonus {
@@ -250,19 +248,19 @@
           </div>
 
           <div class="scroll-area">
-            <h3 style="font-size: 11px; color: var(--text-dim); margin: 10px 0">
-              BONUS WORDS
+            <h3 style="font-size: 10px; color: var(--text-dim); margin: 10px 0">
+              BONUS WORDS (Click to Remove)
             </h3>
             <div id="bonusList" class="list"></div>
 
             <h3
               style="
-                font-size: 11px;
+                font-size: 10px;
                 color: var(--text-dim);
                 margin: 20px 0 10px;
               "
             >
-              POSSIBLE WORDS
+              POSSIBLE WORDS (Middle-Click for Definition)
             </h3>
             <div id="possibleList" class="list"></div>
           </div>
@@ -296,19 +294,32 @@
         setTimeout(() => t.classList.remove("show"), 2000);
       }
 
+      // Restore the middle click and right click logic
+      function attachExternalLookup(el, word) {
+        const lookup = (e) => {
+          e.preventDefault();
+          window.open(
+            `https://www.dictionary.com/browse/${word.toLowerCase()}`,
+            "_blank",
+          );
+        };
+        // Middle Click
+        el.addEventListener("auxclick", (e) => {
+          if (e.button === 1) lookup(e);
+        });
+        // Right Click (Optional, handy for UX)
+        el.addEventListener("contextmenu", lookup);
+      }
+
       function scrollToWordInOutput(word) {
         const outputArea = document.getElementById("output");
         const text = outputArea.value;
         const index = text.indexOf(`"${word}"`);
-
         if (index !== -1) {
           outputArea.focus();
           outputArea.setSelectionRange(index, index + word.length + 2);
-
-          // Calculate line height scroll position
           const linesBefore = text.substring(0, index).split("\n").length;
-          const lineHeight = 18; // Approx px for 12px font-size
-          outputArea.scrollTop = (linesBefore - 5) * lineHeight;
+          outputArea.scrollTop = (linesBefore - 8) * 18; // Adjusted offset
         }
       }
 
@@ -357,7 +368,6 @@
           [1, -1],
           [-1, 1],
         ];
-
         for (let y = 0; y < rows; y++) {
           for (let x = 0; x < cols; x++) {
             for (const [dx, dy] of dirs) {
@@ -391,6 +401,7 @@
             lvl.bonusWords.splice(i, 1);
             render();
           };
+          attachExternalLookup(d, word);
           container.appendChild(d);
         });
       }
@@ -427,6 +438,7 @@
             const d = document.createElement("div");
             d.className = "word possible";
             d.textContent = wordStr;
+            attachExternalLookup(d, wordStr);
 
             if (blocked.has(wordStr)) {
               d.classList.add("blocked");
@@ -465,7 +477,7 @@
           try {
             const raw = JSON.parse(r.result);
             dictionary = new Set(Object.keys(raw).map((w) => w.toUpperCase()));
-            showToast(`Dict Loaded: ${dictionary.size}`);
+            showToast(`Dictionary Loaded!`);
             renderPossible();
           } catch {
             showToast("Invalid Dict JSON");
